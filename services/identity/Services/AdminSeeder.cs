@@ -28,6 +28,12 @@ public static class AdminSeeder
             logger.LogWarning("Administrator bootstrap ignored: not Development and Admin:AllowOutsideDevelopment is not true.");
             return;
         }
+        var resetPassword = config.GetValue<bool>("Admin:ResetPassword");
+        if (resetPassword && !env.IsDevelopment())
+        {
+            logger.LogWarning("Administrator password reset ignored outside Development.");
+            resetPassword = false;
+        }
         if (password.Length < 8)
         {
             logger.LogError("Admin:Password must be at least 8 characters; administrator not created.");
@@ -43,10 +49,18 @@ public static class AdminSeeder
             db.Users.Add(user);
             logger.LogWarning("Created administrator account {Email} from configuration (development bootstrap).", email);
         }
-        else if (user.Role != Roles.Admin)
+        else
         {
-            user.Role = Roles.Admin;
-            logger.LogWarning("Promoted existing user {Email} to Admin from configuration.", email);
+            if (user.Role != Roles.Admin)
+            {
+                user.Role = Roles.Admin;
+                logger.LogWarning("Promoted existing user {Email} to Admin from configuration.", email);
+            }
+            if (resetPassword)
+            {
+                user.PasswordHash = hasher.HashPassword(user, password);
+                logger.LogWarning("Reset administrator password for {Email} using the explicit Development-only setting.", email);
+            }
         }
         await db.SaveChangesAsync();
     }
